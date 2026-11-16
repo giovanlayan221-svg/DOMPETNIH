@@ -11,6 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cari folder proyek
+        run: |
+          CFG=$(find . -maxdepth 3 -name capacitor.config.json -not -path "*/node_modules/*" | head -n 1)
+          if [ -z "$CFG" ]; then
+            echo "::error::capacitor.config.json tidak ditemukan. Upload seluruh isi folder dompetnih-app ke repo ini (package.json, web, src, scripts, resources)."
+            ls -a
+            exit 1
+          fi
+          DIR=$(dirname "$CFG")
+          echo "Folder proyek: $DIR"
+          echo "APP_DIR=$DIR" >> "$GITHUB_ENV"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -21,19 +33,22 @@ jobs:
           java-version: 17
 
       - name: Pasang dependensi
+        working-directory: ${{ env.APP_DIR }}
         run: npm install
 
       - name: Siapkan web
+        working-directory: ${{ env.APP_DIR }}
         run: npm run build:web
 
       - name: Buat proyek Android
+        working-directory: ${{ env.APP_DIR }}
         run: |
           if [ ! -d android ]; then npx cap add android; fi
           node scripts/patch-android.mjs
           npx cap sync android
 
       - name: Build APK
-        working-directory: android
+        working-directory: ${{ env.APP_DIR }}/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
@@ -42,4 +57,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dompetnih-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
+          
